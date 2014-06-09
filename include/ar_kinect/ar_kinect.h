@@ -48,6 +48,8 @@
 #include <pcl/registration/icp.h>
 #include <pcl/registration/registration.h>
 #include <pcl/registration/transformation_estimation_svd.h>
+#include <pcl_ros/point_cloud.h>
+
 
 #include <opencv/cv.h>
 #include <cv_bridge/cv_bridge.h>
@@ -73,7 +75,7 @@ namespace ar_pose
 
   private:
     void arInit ();
-    void getTransformationCallback (const sensor_msgs::PointCloud2ConstPtr &);
+    void getTransformationCallback (const PointCloud::ConstPtr& msg);
 
     ros::NodeHandle n_;
     tf::TransformBroadcaster broadcaster_;
