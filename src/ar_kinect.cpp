@@ -99,7 +99,7 @@ namespace ar_pose
     // **** subscribe
 
     configured_ = false;
-    cloud_sub_ = n_.subscribe(cloudTopic_, 1, &ARPublisher::getTransformationCallback, this);
+    cloud_sub_ = n_.subscribe<PointCloud>(cloudTopic_, 1, &ARPublisher::getTransformationCallback, this); // Subscribe directly to pointcloud
 
     // **** advertise 
 
@@ -138,7 +138,7 @@ namespace ar_pose
   /* 
    * One and only one callback, now takes cloud, does everything else needed. 
    */
-  void ARPublisher::getTransformationCallback (const sensor_msgs::PointCloud2ConstPtr & msg)
+  void ARPublisher::getTransformationCallback (const PointCloud::ConstPtr& msg)
   {
     sensor_msgs::ImagePtr image_msg(new sensor_msgs::Image);
     ARUint8 *dataPtr;
@@ -164,17 +164,11 @@ namespace ar_pose
       cam_param_.dist_factor[3] = 1.0;                  // scale factor, should probably be >1, but who cares...
       
       arInit ();
-    }
-
-    /* convert cloud to PCL & PCLPointCloud2 */
-    PointCloud cloud;    
-    pcl::PCLPointCloud2 cloud_2;    
-    pcl_conversions::toPCL(*msg, cloud_2);
-    pcl::fromPCLPointCloud2(cloud_2, cloud);
+    } 
     
     /* get an OpenCV image from the cloud */
     pcl::PCLImage pcl_image;
-    pcl::toPCLPointCloud2(cloud_2, pcl_image); 
+    pcl::toPCLPointCloud2(*msg, pcl_image);
     pcl_conversions::moveFromPCL(pcl_image, *image_msg);
 
     cv_bridge::CvImagePtr cv_ptr;
@@ -217,13 +211,13 @@ namespace ar_pose
         continue;
       }
       
-      /* create a cloud for marker corners */
+      /* create a cloud for marker corners directly from pointcloud const pointer*/
       int d = marker_info[k].dir;
       PointCloud marker;
-      marker.push_back( cloud.at( (int)marker_info[k].vertex[(4-d)%4][0], (int)marker_info[k].vertex[(4-d)%4][1] ) ); // upper left
-      marker.push_back( cloud.at( (int)marker_info[k].vertex[(5-d)%4][0], (int)marker_info[k].vertex[(5-d)%4][1] ) ); // upper right
-      marker.push_back( cloud.at( (int)marker_info[k].vertex[(6-d)%4][0], (int)marker_info[k].vertex[(6-d)%4][1] ) ); // lower right
-      marker.push_back( cloud.at( (int)marker_info[k].vertex[(7-d)%4][0], (int)marker_info[k].vertex[(7-d)%4][1] ) );
+      marker.push_back( (*msg).at( (int)marker_info[k].vertex[(4-d)%4][0], (int)marker_info[k].vertex[(4-d)%4][1] ) ); // upper left
+      marker.push_back( (*msg).at( (int)marker_info[k].vertex[(5-d)%4][0], (int)marker_info[k].vertex[(5-d)%4][1] ) ); // upper right
+      marker.push_back( (*msg).at( (int)marker_info[k].vertex[(6-d)%4][0], (int)marker_info[k].vertex[(6-d)%4][1] ) ); // lower right
+      marker.push_back( (*msg).at( (int)marker_info[k].vertex[(7-d)%4][0], (int)marker_info[k].vertex[(7-d)%4][1] ) );
 
       /* create an ideal cloud */
       double w = object[i].marker_width;
@@ -260,7 +254,7 @@ namespace ar_pose
       /* publish the marker */
       ar_pose::ARMarker ar_pose_marker;
       ar_pose_marker.header.frame_id = msg->header.frame_id;
-      ar_pose_marker.header.stamp = msg->header.stamp;
+      ar_pose_marker.header.stamp = ros::Time::now(); //msg->header.stamp  I am unsure what this should be;
       ar_pose_marker.id = object[i].id;
 
       ar_pose_marker.pose.pose.position.x = transform.getOrigin().getX();
@@ -278,7 +272,7 @@ namespace ar_pose
       /* publish transform */
       if (publishTf_)
       {
-	    broadcaster_.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, object[i].name));
+	    broadcaster_.sendTransform(tf::StampedTransform(transform,ros::Time::now(), msg->header.frame_id, object[i].name)); //again missing header stamp
       }
 
       /* publish visual marker */
@@ -292,7 +286,7 @@ namespace ar_pose
         tf::poseTFToMsg (markerPose, rvizMarker_.pose);
 
         rvizMarker_.header.frame_id = msg->header.frame_id;
-        rvizMarker_.header.stamp = msg->header.stamp;
+        rvizMarker_.header.stamp = ros::Time::now();
         rvizMarker_.id = object[i].id;
 
         rvizMarker_.scale.x = 1.0 * object[i].marker_width * AR_TO_ROS;
